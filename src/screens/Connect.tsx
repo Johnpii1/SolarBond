@@ -65,6 +65,7 @@ export function Connect({ onWallet, onNew, onCancel, onBiometric }: ConnectProps
           variant="secondary"
           onClick={onWallet}
           chips={['Freighter', 'xBull', 'Albedo', 'Lobstr']}
+          loading={connecting}
         />
         <Door
           title={t('newTitle')}
@@ -156,9 +157,10 @@ interface DoorProps {
   variant: ButtonVariant
   onClick: () => void
   chips: string[]
+  loading?: boolean
 }
 
-function Door({ title, body, cta, variant, onClick, chips }: DoorProps) {
+function Door({ title, body, cta, variant, onClick, chips, loading }: DoorProps) {
   return (
     <div
       style={{
@@ -216,6 +218,7 @@ function Door({ title, body, cta, variant, onClick, chips }: DoorProps) {
         size="lg"
         style={{ width: '100%', marginTop: 'auto' }}
         onClick={onClick}
+        loading={loading}
       >
         {cta}
       </Button>

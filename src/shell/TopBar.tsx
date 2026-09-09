@@ -33,7 +33,7 @@ export function TopBar() {
   const router = useRouter()
   const t = useTranslations('Nav')
   useLocaleSwitcher()
-  const { connected, address, connecting, isDemo } = useWallet()
+  const { connected, address, connecting, isDemo, connect } = useWallet()
   const { theme, toggle } = useTheme()
 
   const [networkOnline, setNetworkOnline] = useState(true)
@@ -142,7 +142,7 @@ export function TopBar() {
     >
       <Link
         href="/"
-        aria-label="Heliobond — home"
+        aria-label="SolarBond — home"
         style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none' }}
       >
         {mounted && pathname === '/' ? <Mark /> : null}
@@ -155,7 +155,7 @@ export function TopBar() {
             color: 'var(--ink)',
           }}
         >
-          heliobond
+          SolarBond
         </span>
       </Link>
 
@@ -234,7 +234,7 @@ export function TopBar() {
             variant="primary"
             size="md"
             loading={connecting && networkOnline}
-            onClick={() => router.push('/connect')}
+            onClick={() => void connect()}
           >
             {t('connect')}
           </Button>
