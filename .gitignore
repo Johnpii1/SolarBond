@@ -48,6 +48,9 @@ static/uploads/*
 *.egg-info/
 dist/
 
+# Rust / Soroban build output
+target/
+
 # IDE
 .vscode/
 .idea/

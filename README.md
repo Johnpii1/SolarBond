@@ -1,165 +1,107 @@
-# Heliobond — investor app
+# SolarBond
 
-> Sunlight made financial. The investor frontend for **Heliobond**, a green-bond
-> pool on Stellar that opens green investing to everyone — from a €5 first-timer
-> to a €5M institution.
+**SolarBond is a Rust smart contract workspace for Stellar Soroban.** It provides
+a small, token-backed vault primitive for solar-project bond programs: an
+investor deposits a Stellar Asset Contract (SAC) token, receives internal vault
+shares, and can later redeem those shares for the same token.
 
-A faithful, production-grade implementation of the **Heliobond Design System**
-handoff. The investor click-through —
+This repository is no longer an EVM application or Solidity project. The
+on-chain source of truth is the `solar-bond` Rust crate under
+[`contracts/solar-bond`](./contracts/solar-bond). The existing web application,
+Python utilities, screenshots, and other folders have deliberately been kept in
+place as legacy product material; they are not the contract implementation.
 
+## Contract model
+
+`SolarBond` is intentionally narrow and auditable:
+
+1. An administrator initializes the vault once with its accepted SAC asset.
+2. An investor authorizes a `deposit(amount)`. The contract transfers that asset
+   into its own address and records one internal share per token unit.
+3. An investor authorizes `withdraw(shares)`. The matching shares are burned and
+   the contract transfers the same number of asset units back to the investor.
+
+The 1:1 share model makes this crate a custody and accounting primitive, not a
+yield engine. Solar-project selection, yield accrual, pricing, KYC, and oracle
+reporting should be implemented in separately reviewed contracts or off-chain
+services. This separation keeps the asset movement rule easy to inspect.
+
+### Public contract interface
+
+| Method | Auth | Description |
+| --- | --- | --- |
+| `initialize(admin, asset)` | `admin` | One-time configuration of the vault administrator and accepted SAC asset. |
+| `deposit(from, amount)` | `from` | Transfers a positive asset amount into the vault and mints the same number of shares. |
+| `withdraw(to, shares)` | `to` | Burns positive shares and transfers the matching asset amount from the vault. |
+| `asset()` | None | Returns the configured SAC token contract address. |
+| `admin()` | None | Returns the administrator address. |
+| `total_shares()` | None | Returns outstanding shares. |
+| `share_balance(owner)` | None | Returns an investor's recorded share balance. |
+
+## Repository layout
+
+```text
+Cargo.toml                         Rust workspace definition
+contracts/
+  solar-bond/
+    Cargo.toml                      Soroban contract crate
+    src/lib.rs                      Contract implementation
+    src/test.rs                     Contract-level tests
+src/, public/, templates/, static/  Preserved legacy web-product material
 ```
-landing → connect → explore → project detail → deposit → portfolio → withdraw
-```
 
-— plus the **creator space**, the internal **admin / oracle console**, real
-**Stellar wallet** connection, a first-class **dark theme**, **English / French**
-i18n, and the live WebGL **Helio**. It honours the brand's _warm · lucid · alive_
-brief: a two-color world (deep-pine ink on morning-air canvas) plus one solar
-accent, Cabinet Grotesk / Hanken Grotesk / Spline Sans Mono type.
+No existing folder was removed while repurposing the repository. New contract
+work belongs under `contracts/`; do not add EVM artifacts, Solidity contracts,
+ABIs, or EVM wallet integrations.
 
-## Stack
+## Prerequisites
 
-- **Next.js 16 (App Router) + React 19 + TypeScript** (strict). Each screen is a
-  real route → per-route code splitting, real URLs, SSR-ready shells.
-- **bun** package manager / runner.
-- **@creit.tech/stellar-wallets-kit** — multi-wallet connection (Freighter, xBull,
-  Albedo, Lobstr, Hana, WalletConnect) on testnet.
-- **three + @react-three/fiber + @react-three/drei** — the live Helio (WebGL/R3F).
-- **next-intl** — EN/FR with cookie-based locale (no `[locale]` URL segment).
-- Design tokens are plain CSS custom properties (verbatim from the handoff);
-  components reference them via `var(--token)`, so light/dark is a pure token swap. See the [Design Tokens & Brand Guide](src/styles/tokens/README.md) for details.
+- Rust stable and Cargo.
+- The `wasm32v1-none` target required by your installed Soroban CLI/SDK.
+- [Soroban CLI](https://developers.stellar.org/docs/tools/developer-tools/soroban-cli)
+  for contract build, deploy, and invocation workflows.
 
-## Design Tokens Quick Reference
+## Build and test
 
-The app’s source of truth is the CSS token layer in `src/styles/tokens/`:
-
-- Colors: `--ink`, `--canvas`, `--surface`, `--solar`, `--growth`, `--ember`, plus the semantic text / border aliases.
-- Typography: `--font-display`, `--font-body`, `--font-data`, and the type ladder (`--type-display-xl`, `--type-h3`, `--type-body`, `--type-small`, etc.).
-- Spacing and radii: `--space-1` through `--space-32`, plus `--radius-input`, `--radius-card`, `--radius-modal`, and `--radius-pill`.
-- Breakpoints: the shared layout uses `680px` and `960px` responsive cuts, with a max content width of `90rem`.
-
-For the full token table and rules, see [src/styles/tokens/README.md](src/styles/tokens/README.md).
-
-## Preview gallery
-
-<p align="center">
-  <img src="/screenshots/landing-light.svg" alt="Landing page in light mode" width="420" height="280" />
-  <img src="/screenshots/landing-dark.svg" alt="Landing page in dark mode" width="420" height="280" />
-</p>
-
-<p align="center">
-  <img src="/screenshots/deposit-light.svg" alt="Deposit flow in light mode" width="420" height="280" />
-  <img src="/screenshots/deposit-dark.svg" alt="Deposit flow in dark mode" width="420" height="280" />
-</p>
-
-<p align="center">
-  <img src="/screenshots/portfolio-light.svg" alt="Portfolio dashboard in light mode" width="420" height="280" />
-  <img src="/screenshots/portfolio-dark.svg" alt="Portfolio dashboard in dark mode" width="420" height="280" />
-</p>
-
-<p align="center">
-  <img src="/screenshots/admin-light.svg" alt="Admin console in light mode" width="420" height="280" />
-  <img src="/screenshots/admin-dark.svg" alt="Admin console in dark mode" width="420" height="280" />
-</p>
-
-## Run
+Run contract commands from the repository root:
 
 ```bash
-bun install
-bun run dev        # http://localhost:3000 (Turbopack)
-bun run build      # next build
-bun run start      # serve the production build
-bun run typecheck  # tsc --noEmit
+cargo fmt --all --check
+cargo test -p solar-bond
 ```
 
-## Local environment
-
-Copy `.env.example` to `.env.local` before running against a backend or Soroban
-vault:
+Build the Wasm artifact with the Soroban CLI after installing its target and
+following the CLI's current setup instructions:
 
 ```bash
-cp .env.example .env.local
+soroban contract build
 ```
 
-The app runs without a `.env.local` file and falls back to bundled demo data. Set
-only the values needed for the mode you are testing.
+The unit test deploys a Stellar Asset Contract in Soroban's in-memory test
+environment, mints test tokens, deposits into SolarBond, and verifies share and
+asset balances after a withdrawal.
 
-| Variable | Required? | Default / fallback | Purpose |
-| --- | --- | --- | --- |
-| `NEXT_PUBLIC_API_URL` | No | Demo fixture data | Backend API base URL, for example `http://localhost:3001`. |
-| `NEXT_PUBLIC_STELLAR_NETWORK` | No | `public` | Stellar network for wallet and Soroban helpers. Use `testnet` for local/dev testing. |
-| `NEXT_PUBLIC_VAULT_CONTRACT_ID` | No | Demo vault mode | Soroban vault contract ID for live vault reads and transactions. |
-| `NEXT_PUBLIC_SOROBAN_RPC_URL` | No | Network-specific Stellar RPC URL | Override the Soroban RPC endpoint. |
-| `NEXT_PUBLIC_HORIZON_URL` | No | Network-specific Horizon URL | Override the Horizon endpoint used for transaction account loading. |
+## Deploying safely
 
-For backend configuration, see the backend repository's `.env.example`.
+1. Run the full test suite and format check.
+2. Build the Wasm artifact with `soroban contract build`.
+3. Deploy to a non-production Stellar network first.
+4. Initialize exactly once with the intended administrator and SAC asset
+   contract addresses.
+5. Verify the deployed Wasm hash, contract ID, initialization transaction, and
+   authorization behavior before accepting deposits.
 
-## Error codes
+Treat this code as a starting point, not audited financial infrastructure. Have
+the final contract, deployment scripts, token configuration, and operational
+access controls independently reviewed before mainnet use.
 
-Frontend-friendly error messages are mapped in `src/lib/errorMessages.ts`.
-Developers can find the supported codes, API response shape, and guidance for
-opaque provider codes such as `ERR_008` in [ERROR_CODES.md](ERROR_CODES.md).
+## Legacy frontend
 
-## Features
+The retained Next.js files can still be explored with their existing Node/Bun
+tooling, but they are outside the contract release path. Their prior investment
+dashboard copy and demo data must not be interpreted as a deployed protocol or
+a production integration with this contract.
 
-- **Wallet wiring** — `src/wallet/WalletProvider.tsx` connects a real Stellar
-  wallet via the kit's modal and shows the live address; `connectDemo()` provides
-  a placeholder session so the click-through works without an extension installed.
-  Deposit/withdraw math flows through `src/wallet/vault.ts`, a _simulated_ vault
-  client structured for real Soroban `convert_to_shares` / `deposit` / `withdraw`
-  calls once the contracts are deployed.
-- **Dark theme ("After Sunset")** — `src/theme/` provides a no-flash toggle
-  (render-blocking bootstrap script + `data-theme` swap), persisted, defaulting to
-  the OS preference. Toggle in the top bar.
-- **i18n (EN/FR)** — `src/i18n/` + `messages/{en,fr}.json` (117 keys each, in
-  parity). The shell and all six investor screens are fully translated; the
-  language switcher sets a cookie and refreshes. Design-system primitives and the
-  new creator/admin/project-detail surfaces currently ship English (i18n-ready).
-- **Project detail** (`/project/[id]`) — hero, verified-creator badge, two large
-  sun-arc scores with on-chain score-history sparklines, funding timeline, the
-  expandable return formula, and honest pooled-model framing.
-- **Creator space** (`/creator`) — whitelist application with a status tracker, a
-  project builder with a live `ProjectCard` preview, and a creator dashboard that
-  makes the oracle's scoring legible.
-- **Admin / oracle console** (`/admin`, linked from the footer) — a denser
-  internal surface: vault stats, a sortable project registry with inline score
-  editing, oracle "push score / fund project" forms, and whitelist management.
-- **Live Helio** — `src/brand/HelioWebGL.tsx`, a soft luminous R3F orb that
-  breathes, leans toward the cursor, and carries a per-project mote corona.
-  `src/brand/LiveHelio.tsx` swaps in the static SVG `<Helio>` under SSR, no-WebGL,
-  or `prefers-reduced-motion`. Used at the landing hero; the smaller portfolio /
-  deposit orbs stay static by design.
+## License
 
-## Structure
-
-```
-src/
-  app/                     App Router: layout (i18n + theme + shell), providers,
-                           and route wrappers (/, connect, explore, deposit,
-                           portfolio, withdraw, project/[id], creator, admin)
-  brand/                   Mark (analemma), Helio (static), HelioWebGL, LiveHelio
-  components/              design-system primitives (+ Sparkline)
-  screens/                 Landing/Connect/Explore/Deposit/Portfolio/Withdraw,
-                           ProjectDetail, creator/*, admin/*
-  shell/                   TopBar (nav, theme, language, wallet), Footer
-  theme/                   ThemeProvider + no-flash script
-  wallet/                  WalletProvider (Stellar Wallets Kit) + vault service
-  i18n/                    next-intl request config
-  data.ts, data/           typed fake pool / project / creator / admin data
-  styles/                  tokens (verbatim) + responsive app-shell layer
-messages/                  en.json, fr.json
-public/assets/             analemma marks, wordmark, favicon
-```
-
-## Not in scope (yet)
-
-- **Real on-chain calls** — the vault client is simulated (no contracts are
-  deployed); wiring `kit.signTransaction` + Soroban RPC is the next step.
-- **Full i18n coverage** — primitives and the creator/admin/project-detail
-  surfaces are English; the pattern + catalogs are in place to extend.
-- Live score-history / funding data (currently fixtures), and additional locales.
-
----
-
-Implemented from the _Heliobond Design System_ handoff bundle exported from
-Claude Design. The reference bundle lives under `.design-handoff/` (gitignored).
+SolarBond is licensed under the [Apache License 2.0](./LICENSE).

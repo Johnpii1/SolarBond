@@ -1,238 +1,95 @@
-# Contributing to Heliobond
+# Contributing to SolarBond
 
-Thanks for helping build Heliobond — a green-bond investment app on Stellar that
-opens green investing to everyone, from one dollar. The same values we promise
-users (transparency, plain language, no dark patterns, accessibility) apply to
-how we build: in the open, kindly, and to a high bar.
+Thanks for contributing to SolarBond, a Rust/Soroban contract workspace for
+token-backed solar-project bonds on Stellar. We value small, reviewable changes,
+explicit authorization rules, reproducible tests, and documentation that does
+not overstate what is deployed.
 
-- **Live demo:** https://heliobond.vercel.app
-- **Architecture & layout:** see [`README.md`](./README.md)
-- **Code of conduct:** [`CODE_OF_CONDUCT.md`](./CODE_OF_CONDUCT.md)
+## Scope
 
-## Ways to contribute
+The active product is the Rust contract in
+[`contracts/solar-bond`](./contracts/solar-bond). This repository intentionally
+retains its historical frontend, Python, static, and template folders. Do not
+delete or reorganize those folders as part of the Soroban migration unless a
+maintainer explicitly asks for it.
 
-There's a lane for most skill sets — pick by what you enjoy:
-
-| Lane                                   | Examples                                                   |
-| -------------------------------------- | ---------------------------------------------------------- |
-| **Frontend** (React / TypeScript)      | screens, components, the WebGL Helio, tests                |
-| **Smart contracts** (Rust / Soroban)   | the registry + vault, wiring live reads/writes             |
-| **Localization** (no deep code needed) | translate the creator/admin/project surfaces, add a locale |
-| **Accessibility**                      | WCAG audit passes, keyboard / screen-reader fixes          |
-| **Design**                             | extend the token system, motion, specimen cards            |
-| **Docs**                               | improve guides, examples, this file                        |
-
-## Find something to work on
-
-1. Browse **[good first issues](https://github.com/Heliobond/frontend/labels/good%20first%20issue)** and **[help wanted](https://github.com/Heliobond/frontend/labels/help%20wanted)**, or this project on **GrantFox**.
-2. **Claim it before you start** — comment on the issue (or apply via GrantFox) so it's assigned to you and we avoid duplicate work. Every issue states its scope and acceptance criteria.
-3. No issue for your idea? Open a **Feature request** first so we can agree on scope before you build.
-
-We don't merge unsolicited PRs that aren't tied to an accepted issue — it keeps the queue clean and your time well spent.
+SolarBond is **not** an EVM project. Please do not add Solidity, Hardhat,
+Foundry, EVM ABI, MetaMask, or EVM RPC dependencies. Contract changes should use
+the Soroban SDK and Stellar Asset Contract interfaces.
 
 ## Local setup
 
-Prerequisites: [**bun**](https://bun.sh) **1.2.4** (the package manager / runner) and Node 18.18+.
+Install Rust stable, Cargo, and the Soroban CLI. From the repository root:
 
 ```bash
-git clone https://github.com/Heliobond/frontend.git
-cd frontend
-bun install
-bun run dev        # http://localhost:3000
+git clone <your-fork-url>
+cd SolarBond
+cargo fmt --all --check
+cargo test -p solar-bond
 ```
 
-Useful scripts — run these before opening a PR:
+The first Cargo run downloads the Soroban SDK and its transitive dependencies.
+If you plan to produce deployable Wasm, also install the target and configuration
+required by the version of Soroban CLI you are using, then run:
 
 ```bash
-bun run build         # production build (must pass)
-bun run typecheck     # tsc --noEmit
-bun run lint          # ESLint
-bun run format:check  # Prettier — check only (used in CI)
-bun run format        # Prettier — rewrite files in place
-bun run test          # Vitest unit + component test suite
-bun run test:e2e      # Playwright end-to-end tests
-bun run start         # serve the production build
+soroban contract build
 ```
 
-## Testing
+## Contract contribution workflow
 
-### Unit and component tests (Vitest)
+1. Open an issue or discussion for changes that alter asset custody, share
+   accounting, authorization, storage layout, or the public contract interface.
+2. Create a focused branch and implement the smallest safe change.
+3. Add or update tests in `contracts/solar-bond/src/test.rs`. Cover both the
+   successful behavior and the rejected/unauthorized path where practical.
+4. Run the checks below before opening a pull request.
+5. Describe storage migrations, auth requirements, event changes, and deployment
+   steps in the PR body. Never claim a deployment or audit that did not happen.
 
-The project uses [Vitest](https://vitest.dev) with a jsdom environment and
-[@testing-library/react](https://testing-library.com/docs/react-testing-library/intro/)
-for component rendering (config: `vitest.config.mts`, `vitest.setup.ts`).
+## Required checks
 
 ```bash
-bun run test        # run all tests once and exit
-bun run test:ui     # open the Vitest browser UI
+cargo fmt --all --check
+cargo test -p solar-bond
 ```
 
-**Structure.** Unit and component tests are co-located with the code they
-cover, as `<Name>.test.ts` / `<Name>.test.tsx` next to `<Name>.ts(x)` — e.g.
-`src/components/Button.test.tsx`, `src/wallet/vault.test.ts`,
-`src/hooks/useSessionTimeout.test.ts`. Tests that cover cross-cutting behaviour
-rather than a single module (i18n catalog parity, shared bond math, contrast
-ratios) live in `src/__tests__/` instead. Vitest picks up anything matching
-`**/*.test.{ts,tsx}`, so a new test file just needs the right name and location
-to be included automatically.
-
-**Helpers.** A shared render helper lives in `src/test/render.tsx`. It wraps
-components in the `LocaleProvider` (i18n) and `ThemeProvider` the app uses at
-runtime, so component tests get a realistic context instead of a bare tree.
-Import `render` (and re-exported `@testing-library/react` utilities like
-`screen`, `fireEvent`) from there instead of from `@testing-library/react`
-directly:
-
-```ts
-import { render, screen, fireEvent } from '@/test/render'
-
-test('renders the primary label', () => {
-  render(<Button variant="primary">Continue</Button>)
-  expect(screen.getByRole('button', { name: 'Continue' })).toBeVisible()
-})
-```
-
-If a test needs `next-intl` strings, they come from `messages/en.json` via the
-helper's `LocaleProvider` — no extra setup required. Add new unit tests next to
-the code under test using this pattern; there's no separate mocking layer to
-configure beyond what `vitest.setup.ts` already provides.
-
-### End-to-end tests (Playwright)
-
-[Playwright](https://playwright.dev) drives a real Chromium browser against the
-running Next.js dev server (config: `playwright.config.ts` — single Chromium
-project, dev server started automatically unless one is already running).
+For changes that produce Wasm, additionally run:
 
 ```bash
-bun run test:e2e    # headless Chromium (starts dev server automatically)
+soroban contract build
 ```
 
-**Structure.** E2E specs live in `e2e/` as `<flow>.spec.ts` (e.g.
-`e2e/deposit.spec.ts`), one file per user-facing flow, grouped with
-`test.describe`. There's no page-object layer yet — specs query the DOM
-directly via Testing-Library-style locators (`page.getByRole(...)`,
-`page.getByText(...)`).
+The legacy Next.js app has its own `package.json` scripts. Run its Node/Bun
+checks only when your change touches that retained frontend; it is not required
+for an isolated Rust-contract patch.
 
-**Helpers.** Because the wallet integration needs a real browser extension,
-specs seed a demo session via `page.addInitScript` before navigating, so the
-flow under test never depends on an actual Stellar wallet:
+## Soroban review checklist
 
-```ts
-async function seedDemoWallet(page: Page) {
-  await page.addInitScript(
-    ({ address }) => {
-      localStorage.setItem('hb-address', address)
-      localStorage.setItem('hb-wallet', 'demo')
-    },
-    { address: DEMO_ADDRESS },
-  )
-}
-```
+- **Authentication:** Every state-changing path must call `require_auth()` on
+  the appropriate principal. Do not substitute a caller-supplied address for an
+  authenticated one.
+- **Asset handling:** Use the configured Stellar Asset Contract only. Validate
+  positive token and share amounts before changing storage or transferring
+  assets.
+- **State consistency:** Update balances and total supply together. Preserve
+  invariants such as `total_shares >= 0` and never silently overwrite
+  initialization.
+- **Compatibility:** Treat contract methods, storage keys, and emitted events as
+  public interfaces. Explain any migration or compatibility impact.
+- **Testing:** Prefer deterministic Soroban test environments. Test deposits,
+  withdrawals, initialization guards, invalid amounts, and authorization
+  failures when modifying related behavior.
+- **Security:** Do not commit private keys, seed phrases, RPC credentials, or
+  production contract IDs. Report vulnerabilities under the process in
+  [`SECURITY.md`](./SECURITY.md), not in a public issue.
 
-Follow `e2e/deposit.spec.ts` as the template for a new flow: seed whatever
-session state the flow needs, `page.goto()` the route, then assert each step
-of the flow in order with `expect(locator).toBeVisible()` /
-`toBeDisabled()`.
+## Documentation
 
-## Development workflow
+Keep [`README.md`](./README.md) and this guide aligned with the implemented
+contract. If a method, asset model, build requirement, or deployment step
+changes, update the relevant documentation in the same pull request.
 
-1. Branch off `main`: `git checkout -b <type>/<short-description>` (e.g. `feat/withdraw-max-chip`, `fix/helio-glow`, `i18n/creator-screens`).
-2. Make focused changes — one issue per PR.
-3. Run the checks locally: **`bun run build`** (must pass), **`bun run typecheck`**, **`bun run lint`**, **`bun run format:check`**, and **`bun run test`**.
-4. If your change is user-facing or otherwise notable (a feature, a fix, a
-   breaking change), add an entry under `[Unreleased]` in
-   [`CHANGELOG.md`](./CHANGELOG.md) — see that file's "How entries are added"
-   section for the format. Purely internal changes (refactors, tooling,
-   formatting) don't need one.
-5. Open a PR using the template; link the issue with `Closes #123`.
-6. CI runs build, typecheck, lint, and format check on every PR; **`main` is protected** and requires green CI plus a maintainer review before merge.
+## Code of conduct
 
-`CODEOWNERS` requires maintainer review for sensitive areas — the wallet integration, design tokens, i18n catalogs, and CI.
-
-## Internationalization
-
-Heliobond uses [`next-intl`](https://next-intl.dev) with cookie-based locale
-selection. Message catalogs live at `messages/en.json` and `messages/fr.json`;
-the request config in `src/i18n/request.ts` loads the matching catalog for the
-current locale.
-
-When you add or change user-facing copy:
-
-1. Pick the namespace that matches the surface using the copy, such as `Nav`,
-   `Footer`, `Landing`, `Deposit`, or `ProjectDetail`.
-2. Add the same key path to **both** `messages/en.json` and `messages/fr.json`.
-   The catalogs must stay in parity: every namespace and key in English must
-   also exist in French, and vice versa.
-3. Translate the value in each catalog. Do not leave English placeholder text in
-   `fr.json` unless the issue explicitly calls for a temporary fallback.
-4. Read the key from code with `useTranslations('<Namespace>')`, then call
-   `t('<key>')`. For example:
-
-```tsx
-import { useTranslations } from 'next-intl'
-
-export function Example() {
-  const t = useTranslations('Creator')
-  return <h1>{t('title')}</h1>
-}
-```
-
-To add a new namespace for a new screen or surface:
-
-1. Create the namespace object in **both** catalogs with identical keys:
-
-```json
-{
-  "Creator": {
-    "title": "Build your project"
-  }
-}
-```
-
-2. Add the translated French values under the same namespace and key names in
-   `messages/fr.json`.
-3. Use that namespace from the component with `useTranslations('Creator')`.
-4. Run `bun run build` or `bun run typecheck` before opening the PR so missing or
-   misspelled message keys are caught with the rest of the app checks.
-
-## Quality bar
-
-- **Builds and type-checks clean.** `bun run build` is the gate; no `any` to paper over types, no `@ts-ignore` without a comment.
-- **Follow the design system.** Use the CSS custom properties (`var(--ink)`, `var(--solar)`, …) — never hardcode colours. See `README.md` and `src/styles/tokens/`.
-- **Brand rules checklist.** Every PR touching UI copy or design must meet all of the following:
-  - Sentence case — no all-caps headlines.
-  - Mono tabular numerals for figures.
-  - Every delta carries a `+`/`−` sign and arrow; colour is never the sole carrier.
-  - Solar is never the sole carrier of meaning (and never text on a light background).
-  - No emoji in the product.
-  - No exclamation marks on financial copy.
-- **User-facing strings are translated.** If you add or change copy in the shell or translated screens, add the key to **both** `messages/en.json` and `messages/fr.json` (they must stay in parity).
-- **Accessibility is not optional.** Keyboard operable, visible focus, semantic landmarks, `prefers-reduced-motion` respected, touch targets ≥ 44px.
-- **No secrets** in the repo or in client code.
-
-## Definition of done
-
-- The issue's acceptance criteria are met.
-- CI is green; the PR is reviewed and approved.
-- UI changes include before/after screenshots (or a short screencast).
-- Docs/translations updated where relevant.
-
-## Reporting bugs & security
-
-- **Bugs:** open a **Bug report** issue with steps to reproduce.
-- **Security:** please do **not** open a public issue. Use GitHub's **"Report a vulnerability"** (Security tab) for a private advisory.
-
-## Pre-commit hooks
-
-The project ships a pre-commit hook via **Husky** that runs the TypeScript
-type-checker, ESLint, Prettier format check, and the full test suite on every
-commit. Install it:
-
-```bash
-bun run prepare
-```
-
-To opt out, skip the `prepare` step — the hook is **not** installed unless you run
-it. Contributors who opt out are still expected to run `bun run build` before opening a PR.
-
-By contributing, you agree to abide by the [Code of Conduct](./CODE_OF_CONDUCT.md).
+All contributors must follow the [Code of Conduct](./CODE_OF_CONDUCT.md).
