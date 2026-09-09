@@ -13,7 +13,7 @@ const TopBar = dynamic(() => import('../shell/TopBar').then((m) => m.TopBar))
 const Footer = dynamic(() => import('../shell/Footer').then((m) => m.Footer))
 
 export const metadata: Metadata = {
-  title: 'Heliobond — sunlight made financial',
+  title: 'SolarBond — verified solar investments on Stellar',
   description:
     'Own a piece of the energy transition. From one dollar. A transparent pool funding verified green projects on Stellar.',
   icons: {
@@ -21,7 +21,7 @@ export const metadata: Metadata = {
     apple: '/assets/apple-touch-icon.png',
   },
   openGraph: {
-    title: 'Heliobond — sunlight made financial',
+    title: 'SolarBond — verified solar investments on Stellar',
     description:
       'Own a piece of the energy transition. From one dollar. A transparent pool funding verified green projects on Stellar.',
     images: [
@@ -29,7 +29,7 @@ export const metadata: Metadata = {
         url: '/assets/og-image.png',
         width: 1200,
         height: 630,
-        alt: 'Heliobond preview card',
+        alt: 'SolarBond preview card',
       },
     ],
     locale: 'en_US',
@@ -37,7 +37,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Heliobond — sunlight made financial',
+    title: 'SolarBond — verified solar investments on Stellar',
     description:
       'Own a piece of the energy transition. From one dollar. A transparent pool funding verified green projects on Stellar.',
     images: ['/assets/og-image.png'],

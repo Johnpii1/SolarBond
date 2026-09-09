@@ -15,7 +15,7 @@ export function Footer() {
       <div className="hb-footer__inner">
         <div className="hb-footer__brand">
           <Mark size={24} />
-          <span className="hb-footer__wordmark">heliobond</span>
+          <span className="hb-footer__wordmark">SolarBond</span>
         </div>
         <div className="hb-footer__links">
           <nav className="hb-footer__nav" aria-label={t('trustLinks')}>

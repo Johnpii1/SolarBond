@@ -2,8 +2,8 @@ import type { MetadataRoute } from 'next'
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'Heliobond',
-    short_name: 'Heliobond',
+    name: 'SolarBond',
+    short_name: 'SolarBond',
     description: 'Own a piece of the energy transition. From one dollar.',
     start_url: '/',
     display: 'standalone',

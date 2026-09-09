@@ -44,6 +44,21 @@ export function shortAddress(address: string, lead = 4, tail = 3): string {
 const DEMO_ADDRESS = 'GBQHWXVZ2K4M6N8P3R5T7W9YA2C4E6G8J3L5Q7S9U2X4Z6B8D1F3H59XQ'
 const CONNECT_TIMEOUT_MS = 15000
 const MAX_AUTO_RETRIES = 2
+const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '')
+
+async function recordWalletSession(address: string, walletId: string, network: 'PUBLIC' | 'TESTNET') {
+  if (!BACKEND_URL) return
+  try {
+    await fetch(`${BACKEND_URL}/api/wallet-sessions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ address, walletId, network }),
+      keepalive: true,
+    })
+  } catch {
+    // A telemetry failure must never prevent a self-custodial wallet connection.
+  }
+}
 
 const getInitialNetwork = (): 'PUBLIC' | 'TESTNET' =>
   process.env.NEXT_PUBLIC_STELLAR_NETWORK?.toLowerCase() === 'testnet' ? 'TESTNET' : 'PUBLIC'
@@ -135,11 +150,14 @@ export function WalletProvider({ children }: {children: ReactNode}) {
     try {
       await ensureInit()
       const { StellarWalletsKit } = await import('@creit.tech/stellar-wallets-kit')
-      const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('timeout')), CONNECT_TIMEOUT_MS)
-      )
+      let timeoutId: ReturnType<typeof setTimeout> | undefined
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        timeoutId = setTimeout(() => reject(new Error('timeout')), CONNECT_TIMEOUT_MS)
+      })
       const authPromise = StellarWalletsKit.authModal() as Promise<{ address: string }>
       const { address: addr } = await Promise.race([authPromise, timeoutPromise])
+      if (timeoutId) clearTimeout(timeoutId)
+      if (!addr) throw new Error('Wallet did not return an address')
       let walletId = 'wallet'
       try {
         walletId = StellarWalletsKit.selectedModule?.productId ?? 'wallet'
@@ -150,6 +168,7 @@ export function WalletProvider({ children }: {children: ReactNode}) {
       setIsDemo(false)
       setRetryCount(0)
       persist(addr, walletId)
+      void recordWalletSession(addr, walletId, network)
     } catch (e) {
       const isTimeout = e instanceof Error && e.message === 'timeout'
       const isCancelled = e instanceof Error && /dismiss|cancel|closed/i.test(e.message)
@@ -169,7 +188,7 @@ export function WalletProvider({ children }: {children: ReactNode}) {
     } finally {
       setConnecting(false)
     }
-  }, [ensureInit, persist])
+  }, [ensureInit, network, persist])
 
   const connect = useCallback(async () => {
     setRetryCount(0)
