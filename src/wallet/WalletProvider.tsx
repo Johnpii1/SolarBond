@@ -9,6 +9,7 @@ import {
   useState,
   type ReactNode,
 } from 'react'
+import { WalletSelectionModal, type StellarWalletId } from './WalletSelectionModal'
 
 interface WalletContextValue {
   address: string | null
@@ -46,7 +47,11 @@ const CONNECT_TIMEOUT_MS = 15000
 const MAX_AUTO_RETRIES = 2
 const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '')
 
-async function recordWalletSession(address: string, walletId: string, network: 'PUBLIC' | 'TESTNET') {
+async function recordWalletSession(
+  address: string,
+  walletId: string,
+  network: 'PUBLIC' | 'TESTNET',
+) {
   if (!BACKEND_URL) return
   try {
     await fetch(`${BACKEND_URL}/api/wallet-sessions`, {
@@ -63,15 +68,17 @@ async function recordWalletSession(address: string, walletId: string, network: '
 const getInitialNetwork = (): 'PUBLIC' | 'TESTNET' =>
   process.env.NEXT_PUBLIC_STELLAR_NETWORK?.toLowerCase() === 'testnet' ? 'TESTNET' : 'PUBLIC'
 
-export function WalletProvider({ children }: {children: ReactNode}) {
+export function WalletProvider({ children }: { children: ReactNode }) {
   const [address, setAddress] = useState<string | null>(null)
   const [connecting, setConnecting] = useState(false)
   const [isDemo, setIsDemo] = useState(false)
   const [restoring, setRestoring] = useState(true)
   const [connectionError, setConnectionError] = useState<string | null>(null)
+  const [walletPickerOpen, setWalletPickerOpen] = useState(false)
   const [retryCount, setRetryCount] = useState(0)
   const [network, setNetworkState] = useState<'PUBLIC' | 'TESTNET'>(getInitialNetwork)
   const initedNetworkRef = useRef<'PUBLIC' | 'TESTNET' | null>(null)
+  const selectedWalletRef = useRef<StellarWalletId | null>(null)
 
   const persist = useCallback((addr: string, walletId: string) => {
     try {
@@ -144,61 +151,80 @@ export function WalletProvider({ children }: {children: ReactNode}) {
     }
   }, [ensureInit])
 
-  const connectWithRetry = useCallback(async (attempt = 0): Promise<void> => {
-    setConnecting(true)
-    setConnectionError(null)
-    try {
-      await ensureInit()
-      const { StellarWalletsKit } = await import('@creit.tech/stellar-wallets-kit')
-      let timeoutId: ReturnType<typeof setTimeout> | undefined
-      const timeoutPromise = new Promise<never>((_, reject) => {
-        timeoutId = setTimeout(() => reject(new Error('timeout')), CONNECT_TIMEOUT_MS)
-      })
-      const authPromise = StellarWalletsKit.authModal() as Promise<{ address: string }>
-      const { address: addr } = await Promise.race([authPromise, timeoutPromise])
-      if (timeoutId) clearTimeout(timeoutId)
-      if (!addr) throw new Error('Wallet did not return an address')
-      let walletId = 'wallet'
+  const connectWithRetry = useCallback(
+    async (walletId: StellarWalletId, attempt = 0): Promise<void> => {
+      setConnecting(true)
+      setConnectionError(null)
       try {
-        walletId = StellarWalletsKit.selectedModule?.productId ?? 'wallet'
-      } catch {
-        /* fallback */
+        await ensureInit()
+        const { StellarWalletsKit } = await import('@creit.tech/stellar-wallets-kit')
+        StellarWalletsKit.setWallet(walletId)
+        let timeoutId: ReturnType<typeof setTimeout> | undefined
+        const timeoutPromise = new Promise<never>((_, reject) => {
+          timeoutId = setTimeout(() => reject(new Error('timeout')), CONNECT_TIMEOUT_MS)
+        })
+        const authPromise = StellarWalletsKit.authModal() as Promise<{ address: string }>
+        const { address: addr } = await Promise.race([authPromise, timeoutPromise])
+        if (timeoutId) clearTimeout(timeoutId)
+        if (!addr) throw new Error('Wallet did not return an address')
+        let walletId = 'wallet'
+        try {
+          walletId = StellarWalletsKit.selectedModule?.productId ?? 'wallet'
+        } catch {
+          /* fallback */
+        }
+        setAddress(addr)
+        setIsDemo(false)
+        setRetryCount(0)
+        persist(addr, walletId)
+        void recordWalletSession(addr, walletId, network)
+      } catch (e) {
+        const isTimeout = e instanceof Error && e.message === 'timeout'
+        const isCancelled = e instanceof Error && /dismiss|cancel|closed/i.test(e.message)
+        if (isCancelled) {
+          return
+        }
+        if (isTimeout && attempt < MAX_AUTO_RETRIES) {
+          setRetryCount(attempt + 1)
+          await new Promise((r) => setTimeout(r, 1000 * Math.pow(2, attempt)))
+          return connectWithRetry(walletId, attempt + 1)
+        }
+        setConnectionError(
+          isTimeout
+            ? 'Connection timed out — please check your network and try again.'
+            : 'Could not connect to wallet — please try again.',
+        )
+      } finally {
+        setConnecting(false)
       }
-      setAddress(addr)
-      setIsDemo(false)
-      setRetryCount(0)
-      persist(addr, walletId)
-      void recordWalletSession(addr, walletId, network)
-    } catch (e) {
-      const isTimeout = e instanceof Error && e.message === 'timeout'
-      const isCancelled = e instanceof Error && /dismiss|cancel|closed/i.test(e.message)
-      if (isCancelled) {
-        return
-      }
-      if (isTimeout && attempt < MAX_AUTO_RETRIES) {
-        setRetryCount(attempt + 1)
-        await new Promise((r) => setTimeout(r, 1000 * Math.pow(2, attempt)))
-        return connectWithRetry(attempt + 1)
-      }
-      setConnectionError(
-        isTimeout
-          ? 'Connection timed out — please check your network and try again.'
-          : 'Could not connect to wallet — please try again.'
-      )
-    } finally {
-      setConnecting(false)
-    }
-  }, [ensureInit, network, persist])
+    },
+    [ensureInit, network, persist],
+  )
 
   const connect = useCallback(async () => {
     setRetryCount(0)
-    await connectWithRetry(0)
-  }, [connectWithRetry])
+    setConnectionError(null)
+    setWalletPickerOpen(true)
+  }, [])
+
+  const selectWallet = useCallback(
+    async (walletId: StellarWalletId) => {
+      setWalletPickerOpen(false)
+      setRetryCount(0)
+      selectedWalletRef.current = walletId
+      await connectWithRetry(walletId, 0)
+    },
+    [connectWithRetry],
+  )
 
   const retry = useCallback(async () => {
     setRetryCount(0)
     setConnectionError(null)
-    await connectWithRetry(0)
+    if (selectedWalletRef.current) {
+      await connectWithRetry(selectedWalletRef.current, 0)
+      return
+    }
+    setWalletPickerOpen(true)
   }, [connectWithRetry])
 
   const connectDemo = useCallback(() => {
@@ -258,6 +284,12 @@ export function WalletProvider({ children }: {children: ReactNode}) {
       }}
     >
       {children}
+      <WalletSelectionModal
+        open={walletPickerOpen}
+        connecting={connecting}
+        onClose={() => setWalletPickerOpen(false)}
+        onSelect={(walletId) => void selectWallet(walletId)}
+      />
     </WalletContext.Provider>
   )
 }
