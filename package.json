@@ -1,14 +1,14 @@
 {
-  "name": "heliobond-frontend",
+  "name": "solar-bond",
   "private": true,
   "version": "0.1.0",
-  "description": "Heliobond — sunlight made financial. Investor app for a green-bond pool on Stellar.",
+  "description": "SolarBond — a Rust Soroban contract workspace for token-backed solar-project bonds on Stellar.",
   "license": "Apache-2.0",
-  "author": "Heliobond (https://heliobond.vercel.app)",
-  "homepage": "https://heliobond.vercel.app",
+  "author": "SolarBond",
+  "homepage": "https://github.com/solar-bond/solar-bond",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Heliobond/frontend.git"
+    "url": "git+https://github.com/solar-bond/solar-bond.git"
   },
   "engines": {
     "node": ">=18.18.0"
